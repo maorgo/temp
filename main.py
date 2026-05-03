@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 
-from aggregator import ynet_scraper
+from aggregator import ynet_scraper, nytimes_scraper
 from aggregator.formatter import write_digest
 from aggregator.models import Article, SynthesizedContent
 from Agents.summarizer_agent import call_claude
@@ -39,8 +39,9 @@ def main() -> None:
     console.print("\n[bold]── Phase 0: Fetching articles ──[/bold]")
     articles: list[Article] = []
     try:
-        articles.extend(ynet_scraper.fetch())
-        console.print(f"  Fetched [bold]{len(articles)}[/bold] articles from Ynet")
+        for scraper, name in [(nytimes_scraper, "NYTimes"), (ynet_scraper, "Ynet")]:
+            articles.extend(scraper.fetch())
+            console.print(f"  Fetched [bold]{len(articles)}[/bold] articles from {name}")
     except Exception as exc:
         console.print(f"  [red]Ynet fetch failed — {exc}[/red]")
 

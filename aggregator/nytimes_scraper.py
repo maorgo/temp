@@ -1,62 +1,70 @@
-import os
+import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import feedparser
 import requests
+from rich.console import Console
 
 from aggregator.models import Article
 
 _FEED_URL = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
-_API_URL = "https://api.nytimes.com/svc/search/v2/articlesearch.json"
+_JINA_BASE = "https://r.jina.ai/"
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; ContentAggregator/1.0)",
+    "Accept": "text/plain",
+}
+_MAX_WORKERS = 8
+_console = Console(stderr=True)
 
 
-def fetch(api_key: str = "") -> list[Article]:
-    if not api_key:
-        api_key = os.getenv("NYT_API_KEY", "")
-
+def fetch() -> list[Article]:
     feed = feedparser.parse(_FEED_URL)
 
     if feed.bozo and not feed.entries:
         raise RuntimeError(f"NYTimes feed error: {feed.bozo_exception}")
 
+    entries = [e for e in feed.entries if e.get("title") and e.get("link")]
+
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        bodies = list(pool.map(_fetch_full_text, [e.link for e in entries]))
+
     articles: list[Article] = []
-    for entry in feed.entries:
-        if not entry.get("title") or not entry.get("link"):
-            continue
-
-        published = _parse_date(entry)
-        full_article = (
-            _fetch_via_api(entry.link, api_key) if api_key else ""
-        ) or entry.get("summary", "")
-
+    for entry, body in zip(entries, bodies):
         articles.append(Article(
             title=entry.title,
             url=entry.link,
             source="NYTimes",
-            published=published,
-            full_article=full_article,
+            published=_parse_date(entry),
+            full_article=body or entry.get("summary", ""),
         ))
 
     return articles
 
 
-def _fetch_via_api(url: str, api_key: str) -> str:
-    resp = requests.get(
-        _API_URL,
-        params={
-            "fq": f'web_url:("{url}")',
-            "fl": "abstract,lead_paragraph",
-            "api-key": api_key,
-        },
-        timeout=10,
-    )
-    resp.raise_for_status()
-    docs = resp.json().get("response", {}).get("docs", [])
-    if not docs:
+def _fetch_full_text(url: str) -> str:
+    try:
+        resp = requests.get(_JINA_BASE + url, headers=_HEADERS, timeout=20)
+        resp.raise_for_status()
+        return _clean_reader_output(resp.text)
+    except (requests.RequestException, OSError) as exc:
+        _console.print(f"[yellow]NYTimes body fetch failed for {url}: {exc}[/yellow]")
         return ""
-    doc = docs[0]
-    parts = [doc.get("abstract", ""), doc.get("lead_paragraph", "")]
-    return "\n\n".join(p for p in parts if p)
+
+
+def _clean_reader_output(text: str) -> str:
+    marker = "Markdown Content:"
+    idx = text.find(marker)
+    if idx != -1:
+        text = text[idx + len(marker):]
+
+    text = re.sub(r'\[SKIP ADVERTISEMENT\]\([^)]*\)', "", text)
+
+    lines = text.splitlines()
+    while lines and lines[0].strip() in ("Advertisement", ""):
+        lines.pop(0)
+
+    return "\n".join(lines).strip()
 
 
 def _parse_date(entry: feedparser.FeedParserDict) -> datetime:
