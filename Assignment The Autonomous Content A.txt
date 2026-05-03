@@ -1,0 +1,27 @@
+Assignment: The "Autonomous Content Aggregator"
+
+Goal: Build a command-line tool that extracts news from https://www.nytimes.com and https://www.ynet.co.il, summarizes it using a secondary agent, and saves it as a formatted markdown file.
+
+Phase 1: Problem Definition & Context
+
+The Task: Create a  .md file that defines the project’s style guidelines and architecture.
+
+Requirement: Ask Claude Code to "interview" you to clarify which libraries to use and how to handle potential rate limits.
+
+Phase 2: Implementation via Claude Code
+
+    Step A (Research): Use claude to explore the target site's DOM and write a scraper script.
+
+    Step B (Agent Orchestration): Configure a sub-agent specialized in "Content Synthesis." You must define its specific instructions in the agents/ folder so the main agent knows when to delegate the summary task.
+
+    Step C (Tools & MCP): Integrate a Model Context Protocol (MCP) server—such as a local file system tool or a web search tool—to enrich the summaries with external facts.
+
+
+Phase 3: Validation & Iteration
+
+    Automated Testing: Use Claude Code to generate and run a suite of unit tests. You must debug at least one AI-generated logic error using Claude's "Plan Mode".
+
+    Verification: Run a final prompt to review the entire implementation against the original specification to ensure no "hallucinated" features were added.
+
+Leor: 054-599-7831
+

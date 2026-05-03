@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m pip install feedparser beautifulsoup4 anthropic mcp tenacity python-dotenv rich --break-system-packages)"
+    ]
+  }
+}
